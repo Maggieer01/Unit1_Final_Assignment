@@ -1,0 +1,100 @@
+---
+title: "UNIT1_PPT"
+author: "Maggie Sha"
+date: "2020/10/19"
+output: powerpoint_presentation
+---
+
+```{r setup, include=FALSE}
+library(png)
+library(grid)
+library(citation)
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Data
+
+- USDA database selector
+  * 13238 observations of 21 variables
+  * NAs, empty columns, single repeated values
+  * only 8 out of 21 columns containing meaningful data
+  
+## berry data
+
+```{r import berry, echo = FALSE}
+img=readPNG("berry.png")
+grid.raster(img)
+```
+
+## Overview
+
+- Data Cleaning and Organization
+  * strawberry data
+  * unfood data
+  
+- Visualization
+  * Values of chemicals being used in 2016, 2018 and 2019 in all States
+  * FUNGICIDE usage in California, Florida and Washington
+  * PCA
+
+## Data cleaning and Organization
+
+- Filter out data other than strawberries
+- Split the variables in one column into several different columns
+- Eliminate Redundancy 
+- Join columns to make the data meaningful
+- Reorder columns
+- filter chemicals being applied to food
+
+## strawberry data
+
+```{r import strawberries, echo = FALSE}
+img=readPNG("straw.png")
+grid.raster(img)
+```
+
+## chemicals being applied to food
+
+```{r, echo=FALSE}
+img=readPNG("unfood.png")
+grid.raster(img)
+```
+
+## Values of chemicals being used in 2016, 2018 and 2019 in all States
+```{r, echo = FALSE}
+img=readPNG("line graph.png")
+grid.raster(img)
+```
+
+## FUNGICIDE usage in California, Florida and Washington
+```{r, echo = FALSE}
+img=readPNG("bar.png")
+grid.raster(img)
+```
+
+## PCA
+```{r, echo = FALSE}
+img=readPNG("pca.png")
+grid.raster(img)
+```
+
+## References
+```{r}
+citation("knitr")
+```
+## References
+```{r}
+
+citation("citation")
+```
+## References
+```{r}
+
+citation("ggplot2")
+```
+
+## References
+citation(package="tidyverse")
+
+ Wickham et al., (2019). Welcome to the tidyverse. Journal of Open Source
+  Software, 4(43), 1686, https://doi.org/10.21105/joss.01686
