@@ -1,0 +1,474 @@
+---
+title: "UNIT1_Assignment"
+author: "Maggie Sha"
+date: "2020/10/17"
+output: 
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(tidyverse)
+library(magrittr)
+library(kableExtra)
+library(ggplot2)
+library(citation)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Assignment Goal
+
+This assignment aims to let us practice what we have learnt in Unit 1. Using part of the data, exploring the data and visualizing. There is no strict requirement or exact question waiting me to solve, I will try to do some exploration and show the results that I found.
+
+
+##  Acquire and read the data
+
+These data were collected from the USDA database selector: <a href="https://quickstats.nass.usda.gov">https://quickstats.nass.usda.gov</a>
+
+The data were <a href="https://quickstats.nass.usda.gov/results/D416E96E-3D5C-324C-9334-1D38DF88FFF1">stored online</a> and then downloaded as a CSV file.
+
+```{r}
+
+## read the data
+
+ag_data <- read_csv("berries.csv", col_names = TRUE)
+
+## look at number of unique values in each column
+ag_data %>% summarize_all(n_distinct) -> aa
+
+
+## make a list of the columns with only one unique value
+bb <- which(aa[1,]==1)
+
+## list the 1-unique value column names 
+cn <- colnames(ag_data)[bb]
+
+```
+
+Data selected from the NASS database often has columns without any data or with a single repeated Values.  The berries data had only 8 out of 21 columns containing meaningful data.
+
+```{r}
+
+
+## remove the 1-unique columns from the dataset
+ag_data %<>% select(-all_of(bb))
+
+aa %<>% select(-all_of(bb)) 
+
+
+## State name and the State ANSI code are (sort of) redundant
+## Just keep the name
+ag_data %<>% select(-4)
+aa %<>% select(-4) 
+
+
+kable(head(ag_data)) %>%
+  kable_styling(font_size=12)
+
+
+```
+
+```{r}
+berry <- unique(ag_data$Commodity)
+nberry <- length(berry)
+
+```
+
+This table contains informaton about `r nberry` berries: blueberries, raspberries, and strawberries.
+
+Here I only use Strawberries for the data cleaning and organization. Only the "YEAR" time periond will be considered.
+
+## Data cleaning and organization - Strawberries
+```{r,results='hide',message=FALSE,warning=FALSE}
+straw <- ag_data %>% filter((Commodity=="STRAWBERRIES") & (Period=="YEAR"))
+straw %<>% select(-c(Period, Commodity))   
+
+#### Does every Data Item begin with "
+sum(str_detect(straw$`Data Item`, "^STRAWBERRIES, ")) == length(straw$`Data Item`)
+
+for (i in 1:5){
+  straw[i,]['Data Item'] <- str_replace(straw[i,]['Data Item'], "STRAWBERRIES", "STRAWBERRIES, TAME")
+}
+
+straw %<>% separate(`Data Item`, c("S","type", "meas", "what"), sep = ",") 
+straw %<>% select(-S)
+
+ head(straw$type, n=20)
+ ty <- str_split(straw$type, " ", simplify=TRUE)
+head(ty, n=20)
+
+straw %<>% separate(type,c("b1", "type", "b2", "lab1", "lab2","lab3"), " ")
+
+straw %<>% select(-c(b1,b2,lab3)) 
+
+straw[is.na(straw)] <- " "  ## now Data Item has been split into parts
+
+```
+
+```{r,results='hide',message=FALSE,warning=FALSE}
+
+
+# straw$Domain %>% unique()
+
+straw %<>% separate(Domain, c("D_left", "D_right"), sep = ", ")
+
+# straw$D_left %>% unique()
+# straw$D_right %>% unique()
+
+straw[is.na(straw)] <- " "
+
+## And now Domain Category
+
+## straw$`Domain Category` %>% unique()
+
+straw %<>% separate(`Domain Category`, c("DC_left", "DC_right"), sep = ", ")
+
+## looks like DC_left combines labels
+
+head(straw$DC_left %>% unique(),n=20)
+head(straw$DC_right %>% unique(), n=20)
+
+
+## work on DC_left first
+
+straw %<>% separate(DC_left, c("DC_left_l", "DC_left_r"), sep = ": ")
+
+## straw$DC_left_l %>% unique()
+## straw$DC_left_r %>% unique()
+
+## now work on DC_right
+
+head(straw$DC_right %>% unique(), n=20)
+
+straw %<>% separate(DC_right, c("DC_right_l", "DC_right_r"), sep = ": ") 
+
+
+straw[is.na(straw)] <- " "
+
+## now we need to eliminate the redundancy
+```
+
+```{r,results='hide',message=FALSE,warning=FALSE}
+
+## remove redundant columns
+ 
+## paste(straw$D_left,straw$DC_left_l) %>% unique
+## returns -- "TOTAL NOT SPECIFIED"   "CHEMICAL CHEMICAL"     "FERTILIZER FERTILIZER"  
+##            "CHEMICAL CHEMICAL, INSECTICIDE: (CYFLUMETOFEN�= 138831)"
+
+## remove column straw$DC_left_l
+straw %<>% select(-DC_left_l) 
+
+## test
+
+# sum(straw$D_right == straw$DC_right_l)
+# [1] 3200
+# > straw$DC_left_r %>% unique()
+# [1] " "           "(NITROGEN)"  "(PHOSPHATE)" "(POTASH)"    "(SULFUR)"  
+
+## remove column DC_right_l
+straw %<>% select(-DC_right_l)
+
+## Test for lab1, lab2
+
+# paste(straw$lab1, straw$lab2) %>% unique()
+# [1] "ACRES HARVESTED" "ACRES PLANTED"   "PRODUCTION  "    "YIELD  "         "APPLICATIONS  "  "TREATED  "       "- PRODUCTION"    "   "     
+# [9] "$  "             "CWT  "           "CWT /" 
+
+straw %<>% mutate(label = paste(lab1,lab2)) 
+
+## test for necisity of "chemical" in col D_left
+
+# paste(straw$D_left, straw$D_right) %>% unique()
+# [1] "TOTAL  "              "CHEMICAL FUNGICIDE"   "CHEMICAL HERBICIDE"   "CHEMICAL INSECTICIDE"
+# [5] "CHEMICAL OTHER"       "FERTILIZER  "   
+
+
+## remove "Chemical" and joint the columns
+straw %<>% mutate(D_left = "CHEMICAL", D_left = "") 
+
+straw %<>% mutate(Chemical=paste(D_left, D_right)) 
+
+straw %<>% select(-c(D_left, D_right)) 
+
+straw %<>% select(Year, State, type, what, meas, label, DC_left_r, DC_right_r, Chemical, Value)
+
+```
+
+
+```{r,results='hide',message=FALSE,warning=FALSE}
+
+### Now the problem is that we have entries in both the "what" and "meas" columns
+##  that begin  "MEASURED IN"
+##  how many are there
+
+## in the column "what"
+cnt_1 <- str_detect(straw$what, "MEASURED IN")
+sum(cnt_1)
+
+## in the column "meas"
+cnt_2 <- str_detect(straw$meas, "MEASURED IN")
+sum(cnt_2)
+
+## We want to put them all in the same column
+## So, we will separate them from their current column and put them into
+## two columns -- then we will test to make sure there aren't any overlaps
+## and then merge the two columns
+
+## we're going to use PURRR.  We need a simple function that takes a logical
+## variable and a second variable.  It returns the second variable if the logical
+## variable is true and returns a blank if it is false
+
+
+f1 <- function(a,b){
+  if(a){
+    return(b)
+  }else{
+      return("")
+  }
+}
+
+
+## now let's separate the "MEASURED IN" entries in the meas column
+## form an index of the entries to be separated out
+
+index_meas <- str_detect(straw$meas, "MEASURED IN")
+
+## verify the first six values against the dats straw
+head(index_meas)
+new <- map2(index_meas, straw$meas, f1)
+new <- unlist(new)
+head(new, n=20)
+
+
+straw %<>% mutate(m_in_1 = unlist(map2(index_meas, straw$meas, f1))) 
+
+
+straw %<>% mutate(meas = str_replace(straw$meas, "MEASURED IN.*$", ""))
+
+## Check
+cnt_3 <- str_detect(straw$meas, "MEASURED IN")
+sum(cnt_3)
+
+
+#########################
+## Now we will do the same thing with the 
+## "what" column  
+
+### index of cells to be isolated
+index_what <- str_detect(straw$what, "MEASURED IN")
+sum(index_what)
+
+### create a column of the isolated cells
+straw %<>% mutate(m_in_2 = unlist(map2(index_what, straw$what, f1))) 
+
+###  eliminate the isolated cells from the original column
+straw %<>% mutate(what = str_replace(straw$what, "MEASURED IN.*$", ""))
+
+### test that there are no more "MEASURED IN" cells in the original column
+cnt_what <- str_detect(straw$what, "MEASURED IN")
+sum(cnt_what)
+
+### Check for overlaps
+straw %<>% mutate(units = str_trim(paste(m_in_1, m_in_2))) 
+straw$units %>% unique()
+
+```
+
+```{r}
+## now let's clean it up 
+
+straw$what %>% unique()  ## rename Avg
+
+straw$meas %>% unique()  ## rename marketing
+
+straw$label %>% unique() ## rename harvest 
+
+straw$DC_left_r %>% unique() # rename chemical_family
+
+tmp <- straw$DC_right_r %>% unique() # rename materials
+
+tmp <- straw$Value %>% unique() # values
+
+tmp <- straw$units %>% unique() # Measures
+
+
+straw %<>% rename(Avg = what)
+straw %<>% rename(Marketing = meas, Harvest = label, Chem_family = DC_left_r, Materials = DC_right_r, Measures = units)
+
+colnames(straw)
+
+straw %<>% select(Year, State, type, Marketing, 
+                   Measures, Avg, Harvest, Chem_family,
+                   Materials, Chemical, Value )
+
+str_trim(paste(straw$Marketing, straw$Harvest)) %>% unique
+
+###  these belong in one column
+
+straw %<>% mutate(production = str_trim(paste(Marketing, Harvest)))
+
+straw %<>% select(Year, State, type, production, Measures,
+                   Avg, Chem_family, Materials, Chemical, Value)
+
+
+straw %<>% mutate(Chemical = str_trim(paste(Chem_family, Chemical)))
+
+straw %<>% select(Year, State, type, production, Avg, Measures, Materials, Chemical, Value)
+# export the cleaned data as csv 
+write.csv(straw,"D:\\MA615\\straw.csv", row.names = FALSE)
+
+straw
+```
+
+```{r,results='hide',message=FALSE,warning=FALSE}
+
+### let's look at chemicals being applied to food
+
+unfood <- straw %<>% filter(production=="APPLICATIONS") 
+
+
+unfood %<>% filter(Value != "(D)")
+
+unfood %<>% filter(Value !=  "(NA)")
+
+unfood %<>% filter(Measures == "MEASURED IN LB / ACRE / APPLICATION")
+
+unfood$type %>% unique()                  ## BEARING
+unfood$production %>% unique()            ## APPLICATIONS
+unfood$Avg %>% unique()                   ## AVG
+unfood$Measures %>% unique()              ## MEASURED IN LB / ACRE / APPLICATION
+unfood$Materials %>% unique()      ## long list!      
+unfood$Chemical %>% unique()
+write.csv(unfood,"D:\\MA615\\unfood.csv", row.names = FALSE)
+```
+## Visualization
+I am only interested in the chemicals being applied to food. 
+
+This is how the cleaned dataset looks like:
+
+```{r Show_Unfood}
+unfood
+```
+
+
+First I want to see how the usage trends of each kind of chemicals look like from 2016 to 2019 regardless of the locations.
+     * I found that there is no useful data in year 2017, so the plot is made only based on year 2016, 2018 and 2019. As             you can see, there is no dot in year 2017.
+     * I also found that the value of chemical in 'Other' category is much larger than other chemicals, but we have no idea         on what exactly is inside this category, so it is meaningless here and I eliminate this category.
+     * There are many missing data, which are the '0's in the plot. But they basically correspond to year 2016, so the trends        from 2018 to 2019 is still meaningful.
+     
+     
+```{r}
+# define a function to find the values of a specific chemical in a specific year
+
+  f <- function(t,y) {
+    funn <- unfood %>% filter(Chemical == t)%>%filter(Year == y)
+    sum1 <- sum(as.numeric(funn$Value))
+    return (sum1)
+  }
+
+# create a dataframe containing seven chemicals' values in 2016,2018 and 2019
+
+for (i in c("FUNGICIDE","HERBICIDE","INSECTICIDE","(NITROGEN)","(PHOSPHATE)","(POTASH)","(SULFUR)")) {
+   if (i == "FUNGICIDE"){
+     dd <- cbind.data.frame('Chemical' = i, 'Year' = c('2016','2018','2019'),'Value' = c(f(i,2016),f(i,2018),f(i,2019)))
+   } else{
+   dd <- rbind.data.frame(dd,cbind.data.frame('Chemical' = i, 'Year' = c('2016','2018','2019'),'Value' = c(f(i,2016),f(i,2018),f(i,2019))))
+   }
+}
+dd[is.na(dd)] = 0 # turn NAs to 0
+
+# make a line graph to show the trend 
+dd$Year <- as.numeric(dd$Year)
+ggplot(dd, aes(x = Year, y = Value, color = Chemical)) +
+  geom_line() +
+  geom_point() +
+  scale_color_manual(values = c("red", "blue","green","yellow","violet","salmon","grey"))
+```
+
+I notice that FUNGICIDE was been used much more than other chemicals in general, and its slope is continuously positive from 2016 to 2019. Now I want to explore in detail that which State used it the most in the 3 years.
+
+As we can see in the barplot, California State used this chemical the most. Washington State used it the least.
+
+```{r}
+# FUNGICIDE is been used much more than the other two kinds
+# Let's see which State used it the most in 3 years
+
+Cali <- unfood%>%filter(State == 'CALIFORNIA')%>%filter(Chemical == 'FUNGICIDE')
+cal_sum <- sum(as.numeric(Cali$Value))
+
+Flor <- unfood%>%filter(State == 'FLORIDA')%>%filter(Chemical == 'FUNGICIDE')
+flo_sum <- sum(as.numeric(Flor$Value))
+
+Washt <- unfood%>%filter(State == 'WASHINGTON')%>%filter(Chemical == 'FUNGICIDE')
+wa_sum <- sum(as.numeric(Washt$Value))
+df <- data.frame('State' = c('CALIFORNIA','FLORIDA','WASHINGTON'),'Value' = c(cal_sum,flo_sum,wa_sum))
+ggplot(df, aes(x=State, y=Value, color=State)) +
+  geom_bar(stat="identity", fill="white")
+```
+
+Next I want to find the correlations of the chemicals by Principal component analysis(PCA). The correlation is indicated by the angles, the larger the angle is, the smaller the correlation is.
+
+It turns out that FUNGICIDE has little correlation with other chemicals, NiTROGEN has large correlation with POTASH, etc.
+
+```{r,message=FALSE,warning=FALSE}
+# define functions to find the value of a specific chemical in each State
+ca <- function(i){
+  dt <- unfood%>%filter(State == 'CALIFORNIA') %>% filter(Chemical == i)
+  sum <- sum(as.numeric(gsub(",", "", dt$Value)))
+  return (sum)
+}
+fl <- function(i){
+  dt <- unfood%>%filter(State == 'FLORIDA') %>% filter(Chemical == i)
+  sum <- sum(as.numeric(gsub(",", "", dt$Value)))
+  return (sum)
+}
+wa <-wa <- function(i){
+  dt <- unfood%>%filter(State == 'WASHINGTON') %>% filter(Chemical == i)
+  sum <- sum(as.numeric(gsub(",", "", dt$Value)))
+  return (sum)
+}
+
+# create dataframe containing the values of chemicals in different States
+
+for (i in c("FUNGICIDE","HERBICIDE","INSECTICIDE","OTHER","(NITROGEN)","(PHOSPHATE)","(POTASH)","(SULFUR)")) {
+   if (i == "FUNGICIDE"){
+     cali <- rbind.data.frame('Chemical' = i, 'Value' = ca(i),fl(i),wa(i))
+   } else{
+   cali <- cbind.data.frame(cali,rbind.data.frame('Chemical' = i, 'Value' = ca(i),fl(i),wa(i)))
+   }
+}
+cali[is.na(cali)] = 0 # make NAs to be 0
+
+# turn the first row to be titles
+names(cali) <- as.matrix(cali[1,])
+cali <- cali[-1,]
+cali[] <- lapply(cali,function(x) type.convert(as.character(x))) 
+
+pca_result <- prcomp(cali, scale = T)
+names(pca_result)
+
+# means
+kable(t(pca_result$center))
+
+# standard deviations
+kable(t(pca_result$scale))
+
+biplot(pca_result, scale = 0)
+```
+
+## References
+
+```{r}
+citation("knitr")
+citation("magrittr")
+citation("kableExtra")
+citation("citation")
+citation("ggplot2")
+```
+citation(package="tidyverse")
+
+ Wickham et al., (2019). Welcome to the tidyverse. Journal of Open Source
+  Software, 4(43), 1686, https://doi.org/10.21105/joss.01686
