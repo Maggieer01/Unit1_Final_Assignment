@@ -1,2 +1,3 @@
 # Unit1_Final_Assignment
-Analysis on strawberry data 
+Data cleaning and analysis exercise on strawberry data 
+shinyapp included
